@@ -8,13 +8,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 
-	"github.com/unidoc/unipdf/v3/common"
 	"github.com/unidoc/unipdf/v3/annotator"
+	"github.com/unidoc/unipdf/v3/common"
 	"github.com/unidoc/unipdf/v3/model"
 )
 
@@ -67,14 +68,38 @@ func flattenPdf(inputPath, outputPath string) error {
 		return err
 	}
 
+	_, err = pdfReader.Inspect()
+	if err != nil {
+		return err
+	}
+
+	if os.Getenv("WORKAROUND") != "" {
+		pdfReader, err = model.NewPdfReader(f)
+		if err != nil {
+			return err
+		}
+	}
+
+	ok, err := pdfReader.Decrypt(nil)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return errors.New("decrypt failed")
+	}
+
 	fieldAppearance := annotator.FieldAppearance{OnlyIfMissing: true}
-	err = pdfReader.FlattenFields(false, fieldAppearance)
+	err = pdfReader.FlattenFields(true, fieldAppearance)
 	if err != nil {
 		return err
 	}
 
 	pdfWriter := model.NewPdfWriter()
-	pdfWriter.SetForms(nil)
+	err = pdfWriter.SetForms(nil)
+	if err != nil {
+		return err
+	}
 
 	for _, p := range pdfReader.PageList {
 		err := pdfWriter.AddPage(p)
